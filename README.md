@@ -1,6 +1,9 @@
+# Inspiration
+Nurse while talking to the patient or older adult seems distracted bcz they feel taking notes is necessary which result in loss of empathy while talking to the patient or older adult. This tool was made so that nurse can engage with full attantion while talking and AI will do it's work of taking notes
+
 # Nurse Voice Transcriber
 
-A privacy-focused voice transcription tool built for aged care nurses to quickly convert spoken patient notes into text.
+A privacy-focused voice transcription tool built for aged care nurses to quickly convert spoken patient notes into text and download the file at the end of the day.
 
 ## Features
 
