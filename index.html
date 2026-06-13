@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NurseVoice — Aged Care Transcriber</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f2ee;
+      --white: #ffffff;
+      --surface: #faf8f5;
+      --border: #e2ddd7;
+      --accent: #2d6a5a;
+      --accent-light: rgba(45,106,90,0.1);
+      --accent-glow: rgba(45,106,90,0.25);
+      --red: #c0392b;
+      --red-light: rgba(192,57,43,0.1);
+      --text: #1a1a1a;
+      --text-mid: #555;
+      --text-dim: #999;
+      --radius: 16px;
+      --shadow: 0 2px 20px rgba(0,0,0,0.07);
+      --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+    /* HERO */
+    .hero { position: relative; height: 400px; overflow: hidden; }
+    .hero img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; filter: brightness(0.55); }
+    .hero-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, rgba(20,40,35,0.3) 0%, rgba(20,40,35,0.75) 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 32px; text-align: center;
+    }
+    .hero-tag {
+      display: inline-block; background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.35); color: #fff;
+      font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+      padding: 5px 16px; border-radius: 100px; margin-bottom: 18px;
+    }
+    .hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(2.2rem,5vw,3.6rem); color: #fff; line-height: 1.1; margin-bottom: 12px; }
+    .hero h1 em { font-style: italic; color: #a8d5c8; }
+    .hero p { color: rgba(255,255,255,0.75); font-size: 15px; max-width: 460px; line-height: 1.6; margin-bottom: 24px; }
+    .hero-load-btn {
+      background: var(--accent); color: #fff; border: none;
+      padding: 13px 28px; border-radius: 100px;
+      font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s ease;
+    }
+    .hero-load-btn:hover { background: #235449; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(45,106,90,0.4); }
+    .hero-load-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* MODEL BAR */
+    .model-bar {
+      background: var(--white); border-bottom: 1px solid var(--border);
+      padding: 10px 32px; display: flex; align-items: center;
+      justify-content: space-between; font-size: 12px; color: var(--text-mid);
+      flex-wrap: wrap; gap: 10px;
+    }
+    .model-bar .left { display: flex; align-items: center; gap: 10px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; transition: background 0.3s; }
+    .status-dot.ready { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+    .status-dot.loading { background: #f39c12; animation: blink 1s infinite; }
+    .progress-pill { display: none; align-items: center; gap: 8px; background: var(--accent-light); border-radius: 100px; padding: 4px 12px; font-size: 11px; color: var(--accent); }
+    .progress-track { width: 80px; height: 4px; background: rgba(45,106,90,0.2); border-radius: 100px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; }
+
+    /* MAIN */
+    .main { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 12px; }
+    .section-title { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: var(--text); }
+    .section-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 28px; }
+
+    /* PATIENT GRID */
+    .patient-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 48px; }
+
+    .patient-slot {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      box-shadow: var(--shadow); transition: box-shadow 0.2s ease;
+      display: flex; flex-direction: column;
+    }
+    .patient-slot:hover { box-shadow: var(--shadow-lg); }
+    .patient-slot.filled { border-color: rgba(45,106,90,0.25); }
+    .patient-slot.expanded { border-color: var(--accent); }
+
+    /* SLOT HEADER */
+    .slot-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 18px; cursor: pointer; user-select: none;
+      min-height: 72px;
+    }
+    .slot-number {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--accent-light); border: 1.5px solid rgba(45,106,90,0.25);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace; font-size: 12px;
+      color: var(--accent); font-weight: 500; flex-shrink: 0;
+    }
+    .slot-info { flex: 1; min-width: 0; }
+    .slot-name { font-weight: 500; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .slot-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .slot-empty-label { font-size: 13px; color: var(--text-dim); font-style: italic; }
+
+    .slot-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .rec-indicator { display: none; align-items: center; gap: 5px; font-size: 10px; color: var(--red); font-weight: 600; }
+    .rec-indicator.active { display: flex; }
+    .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: blink 1s infinite; }
+    .done-badge { font-size: 16px; display: none; }
+    .done-badge.show { display: block; }
+    .chevron { color: var(--text-dim); font-size: 12px; transition: transform 0.25s ease; }
+    .patient-slot.expanded .chevron { transform: rotate(180deg); }
+
+    /* EDIT PATIENT FORM inside slot */
+    .slot-edit {
+      border-top: 1px solid var(--border);
+      padding: 14px 18px;
+      display: none; background: var(--surface);
+      animation: slideDown 0.2s ease;
+    }
+    .slot-edit.open { display: block; }
+    .edit-row { display: flex; gap: 8px; }
+    .edit-input {
+      flex: 1; padding: 8px 12px;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      background: var(--white); color: var(--text); outline: none;
+    }
+    .edit-input:focus { border-color: var(--accent); }
+    .edit-save { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; white-space: nowrap; }
+    .edit-save:hover { background: #235449; }
+    .edit-clear { padding: 8px 12px; background: none; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-dim); cursor: pointer; }
+    .edit-clear:hover { color: var(--red); border-color: var(--red); }
+
+    /* RECORDER PANEL */
+    .recorder-panel { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    .patient-slot.expanded .recorder-panel { max-height: 600px; border-top: 1px solid var(--border); }
+    .recorder-inner { padding: 20px 18px 18px; }
+
+    .recorder-top { display: flex; align-items: center; gap: 20px; margin-bottom: 18px; }
+    .big-record-btn {
+      width: 72px; height: 72px; border-radius: 50%;
+      border: 2px solid var(--accent); background: var(--accent-light);
+      cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 4px;
+      transition: all 0.3s ease; flex-shrink: 0; color: var(--accent);
+      font-family: 'DM Sans', sans-serif; position: relative;
+    }
+    .big-record-btn::before { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 1px solid var(--accent); opacity: 0.25; transition: all 0.3s; }
+    .big-record-btn:hover:not(:disabled)::before { inset: -10px; opacity: 0.4; }
+    .big-record-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .big-record-btn.recording { border-color: var(--red); background: var(--red-light); color: var(--red); animation: recordPulse 1.5s infinite; }
+    .big-record-btn.recording::before { border-color: var(--red); animation: ringPulse 1.5s infinite; }
+    .mic-icon { font-size: 22px; line-height: 1; }
+    .btn-label-text { font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500; }
+
+    .recorder-stats { flex: 1; }
+    .timer-display { font-family: 'DM Mono', monospace; font-size: 1.8rem; color: var(--text-dim); transition: color 0.3s; letter-spacing: 0.05em; line-height: 1; margin-bottom: 8px; }
+    .timer-display.active { color: var(--red); }
+    .waveform { display: flex; align-items: center; gap: 2px; height: 24px; opacity: 0; transition: opacity 0.3s; }
+    .waveform.active { opacity: 1; }
+    .wave-bar { width: 3px; background: var(--red); border-radius: 100px; height: 4px; transition: height 0.08s ease; }
+
+    .transcript-label { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+    .transcript-box {
+      min-height: 80px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px; font-size: 13px;
+      line-height: 1.7; color: var(--text-mid); margin-bottom: 12px;
+      transition: border-color 0.3s;
+    }
+    .transcript-box.has-text { color: var(--text); border-color: rgba(45,106,90,0.3); }
+    .placeholder { color: var(--text-dim); font-style: italic; font-size: 12px; }
+    .processing { display: none; align-items: center; gap: 8px; font-size: 12px; color: var(--accent); margin-bottom: 8px; }
+    .spinner { width: 12px; height: 12px; border: 2px solid var(--accent-light); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+    .action-row { display: flex; gap: 8px; }
+    .action-btn { flex: 1; padding: 9px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; cursor: pointer; background: transparent; color: var(--text-mid); transition: all 0.2s; }
+    .action-btn:hover:not(:disabled) { border-color: var(--text-mid); color: var(--text); }
+    .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .action-btn.primary { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+    .action-btn.primary:hover:not(:disabled) { background: rgba(45,106,90,0.18); }
+
+    /* EXPORT SECTION */
+    .export-section {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 32px;
+      box-shadow: var(--shadow); text-align: center;
+    }
+    .export-title { font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 8px; }
+    .export-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 24px; line-height: 1.6; }
+    .export-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--accent); color: #fff; border: none;
+      padding: 14px 32px; border-radius: 100px;
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s ease;
+    }
+    .export-btn:hover { background: #235449; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(45,106,90,0.35); }
+    .export-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .export-meta { margin-top: 14px; font-size: 11px; color: var(--text-dim); }
+
+    footer { text-align: center; padding: 24px; font-size: 11px; color: var(--text-dim); border-top: 1px solid var(--border); background: var(--white); }
+    footer span { color: var(--accent); }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes recordPulse { 0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0.4)} 50%{box-shadow:0 0 0 12px rgba(192,57,43,0)} }
+    @keyframes ringPulse { 0%{inset:-5px;opacity:0.5} 100%{inset:-20px;opacity:0} }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <img id="hero-img" src="" alt="Aged care nurse with patient"/>
+  <div class="hero-overlay">
+    <div class="hero-tag">Aged Care · Voice Documentation</div>
+    <h1>Nurse<em>Voice</em></h1>
+    <p>Speak patient notes naturally. Whisper AI transcribes locally — no typing, no cloud, no privacy risk.</p>
+    <button class="hero-load-btn" id="load-btn" onclick="loadModel()">⬇ Load Whisper AI Model</button>
+  </div>
+</div>
+
+<div class="model-bar">
+  <div class="left">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Whisper model not loaded — click the button above to begin</span>
+  </div>
+  <div class="progress-pill" id="progress-pill">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <span id="progress-pct">0%</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="section-header">
+    <h2 class="section-title">Today's Patients</h2>
+  </div>
+  <p class="section-sub">Click any slot to assign a patient. Press Record to capture their note. Export to Excel when done.</p>
+
+  <div class="patient-grid" id="patient-grid"></div>
+
+  <div class="export-section">
+    <div class="export-title">📋 Export Today's Notes</div>
+    <div class="export-sub">Downloads an Excel file with all patients and transcribed notes.<br/>File will be named <strong>Patient_Notes_<today's date>.xlsx</strong></div>
+    <button class="export-btn" id="export-btn" onclick="exportToExcel()">⬇ Download Excel</button>
+    <div class="export-meta" id="export-meta">Load the model and add patient notes to export.</div>
+  </div>
+</div>
+
+<footer>
+  Audio processed entirely in your browser &nbsp;·&nbsp; Powered by <span>Whisper.js</span> &nbsp;·&nbsp; Built for aged care nurses
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  document.getElementById('hero-img').src = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxITEhUTEhMVFRUXFxgVGBYXGBUXGBgYHRYXFxcXFxUYHSggGBolGxcVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDg0OGxAQGy8lHyUvLS0tLy0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIALcBEwMBIgACEQEDEQH/xAAcAAABBQEBAQAAAAAAAAAAAAAFAAIDBAYBBwj/xABBEAACAQIEAwYEBAQEBQQDAAABAhEAAwQSITEFQVEGEyJhcYEykaGxFFLB0QdCgvAjYnLhFpKi4vEzQ6OyFSRT/8QAGQEAAgMBAAAAAAAAAAAAAAAAAgMAAQQF/8QAJBEAAgIDAQACAwADAQAAAAAAAAECEQMhMRIEQSIyURNhgRT/2gAMAwEAAhEDEQA/AN7a43ZKhpibhtjzYGP0NW8biAikyKxfDeGtmLXP/Tt3C4HUknXX1qHtNxdgxJ2EBV/zHb1POs0p0jVGF9IeJdscQrMqNtzyiB8hNBsR2wxUr3bk7ySRqeenIChHEruVjmJOY/CN2/7aG3sXmjwheQA/vypatjaSNhw3ttfsXMt3/FU6nxH4TrIkxzrc4LtLhXUCyyjmV2Py514pf8RECTG88gOdda8QZBEDcifnG9GpNAygme9YT/HVi6ws5VB5jrVzs7gxabKoAGsAV5X2a/iA1lFW6rXLYaAR8WvXrrXrHZ/iFq+FuWmzKQeRHtBpkWmInFpDOJW5dz6falYt6VNj/if1H2p2HXQVcUU3o4qVWxVkmABRBVq4whZij82B7oBJg7qmVDD0q7Yxd0aOhPmP2osK4Vq/FcBeS+o4jSJrtdApRRiyrxL4DQCK0160GEGhL4MTSpxbY7HJJFOKYaufgx1NN/BedD5YfpFQVw71c/Cedc/CHrU8snpEC1y6asfhT1prYQ9auiWgeRUXDR/jN6UROCPWuYTAZGLTM1STsv0qLlKu0jRixhFcp9NIqFjDXIp5FNiqLGkVwin1yKhBlKnRSqEM9xO8ywg2kR6wY057VjuP2YK3Hbwg5R1ndmA61suPMivnbRQI5mTPQe/zrHYnhdzE3CWLZV8UEQAP7jQVifTcuAPizoVF1VUlvhGaSAI1I8/OhvEymVVtSWVRnPItzjy20ozc4UczeFVQeItz8teQgVTu4RVlwXI2DMuVRO7LzMDQetWmkU9gtrRUAtmUARGzMd+ew2qFiwJtqFOxYjXppJ23qVJuGApCrJZiZJ9f0qTh9pMxLHwjrKydYn70d0CMN0KjDTMXAAET/YivVf4UcQYMbDGRBZB0EAn21FeSusuIBIAnp768q9A/hQB+MXmcjCRMaQY9Kn2qKauLPT8Y3jf1/SreHGgpmIwDlmIjU6a1YtWWAAIrTFP7Mc5L6ORVq4PD8qgdY3qe4fD8vvRi2SUqVKiAFSrmYda6TG9QgjQ59zV9XBEgg+mtUG3qmHE5XK7SoQjlcrtcqEOVTxnEUt71YxExpQnEYIazvQyb+huOKfRn/E9mdZohhOI27nwsPSsFxmxDSOtLs7i8t9FbYmPes6z1LyzS/jJx9I9HpV2K5WkxjaVOptQg01ynVyKhY2uRTopVCDYrlOilVEM1i7gv3jaGgQy7Hp/KqjnI1mpeJ4gBQqalyEAnfl7LvJrzLiK4myTeV2bXUSdRBJLEamBGlars5xY3rWZgLZH/ALxU3DHREXQGsdm2i0UQMS8mzabOdAFuuOUn+Uba1keLX8TjCzlD3UkgDYHbYa/StJaw9tswa5dZBrmYKoHM6MdD/cUHuXrNt27gsS0iJZgeex0/aq9F0B8FwtgCJIVviCiPMAlqluYQnwpakrIUE8+Zg7nzq9e4meVtSYO8gEyNJ9zrRaxi4cALLQNvhEgHfnQOT6wlG+AJ+CXcpZmGeAMuXST5+QjlW5/hfwYo5uMNQCoMRO07/L2qPhuGNy6A3hzHQ8+v71uuEYYJ4V2AimYouWxeaSiq+wfieKXgzgNoGIGgpy8Rvfm+gqnxTDswbKYOc6+9W8FhoQCZrRFujPLynwV3FXG3artvicgKRzEnymql0RTVXnyGtHbQLSaNDexCKpdmAUcydKwPGu36tmXDEkCQWgAbfymd+etU+N8TGKJs2Wm3lDMek/FPnqB7mqGJ7PrbsrdS3IjNBMGT6VJTb4SGJLoOudqcRANvNnBMtDBz5MDII+dQYntNcYAPdZ5H8xYAHoRNBuLcW8UKY5RP0kRPpQm5jMwidRyMa+52pO2P0jUYPtLfsOCpKc/CcyN6iYI+tet8C4umKtC6noy81bmPqPnXz4mMlCNCJ+Exp5jTStd/Drjb2b6oSSlxltsOhJAUkdQefME+xQdAZIqS0ey0qQpGtBlOVyqWM4miGNSegoFxrtcllCWgGNBzqrQagzT3boArN8Y42lqQQSelRcL4mLllGzSWEn3oNxbDd7eVlkleVY82dpfidHB8VdkUMdxlGMEEE8iIqHhtwfibQG5YGKvY7A6Aso0qnwnB3Ll3NaSWSCG2jWs6tzQ9rzBnqopVy3MCd4p1dQ4ww1w08im1RY2lXagxOIVBLED1qFrZLXKx/E+1zof8Ncw9/vU3DO3Fhx/iSjDkdvY0tZYsY8UkamlVKxxay6hg4g0qO0BTPNeJE5GHxFmJPMAzFZc418Ney23dFPigfDWyw9sBCWb4ibi841g5p2E1muL2le94RqPvGseVYYv+m9q+Fi1inxCwzNIO0eE/P9quWsCRbeTDHYxqF/Ko/WrPCcIFWCKJ/hxS3K+DVAz9jBEwCCNCJn61peGYMKkgaABevLT7VElgCieDJPgUTmgR51Iq3stqkWeC2Ge6pH8pDE9AP32rbYUamquCwa2lCqPU8yepq7hhvW+GPzE5mbL7lo887RcXcXWtiVAYx5/7UX7OcTJQBqCcfsNdvu35SQB70R7LWNCTypcWypdNDiyDFEsHaHdr50JFvNRLASCAdqdF7AlwxWK4N3UqoWblwZyoA8MwNuZ+Qk6a1oMahCZVEgaR5RyojxewM6tpoCfUjb7n5Vhse9/8QGTVDpCuxZjP8ykRS8mnRpwr0kzIdqOz/iZ+7uCddNQPWBpWGdGVvQ/Y17f2g4gMOCTr4JI6HlWJ/CWsf/i5FXWGa2wzDTTMhHprS1OujpY0+GQssC2sEMPryOlXeFXjbdWHxKysfZgRB+VW+IdlHsmQ4a3Jg7NtJ0/veiHYDhiXsWiOABLOZ3cKZAj2E+U0dp8FNOPT3NW0mqbXWuErb0A0L8vQdas3gcpA3OlOgIoA5CtJjMh2rS7h7Re0O8Y6a+fOvN8R2ev35uX7kE6x0r0bt3jCtkkGOdea4jG3XBIDH7UjJKjVig5bDfBA1hQpMrsDyopa4uqSW0PU1H2OGbDlbi7E6GhXbWxbt2iwXmBHWsrxNu0zYs3mNM0A4rZuqRnX5ijfY3AZM7gyrbeteGW8aBANoRPvXuv8PHBwVuARvoeWtaMeOpWzLmy+o0jS0q7SrQYzlNIp1I1CxlZji2FzXGe43hXRV5eprUEVlu1QKnWcrCI86Rn/AFs0/F/egbiLQYQBpWJ4pw8h4XQ9K22EwoRZBJnry8qE4+2Cd4PXpWG6ejpOFrYFtX3UATtSofxTFOLrBdgRHyFKmpOjM0rNRwzAXrtgZkyj4gTvEzEe5rRL2dtOoBEEDRhuP39K0WOsqDlAgAfXlVZLkacx9RWpYktCP8je0ZLGYBrJyuPRhsfT9qmw9guQqCWPKtXctJdUo4kH5g9R50M4db7i6yEw0DK3Ir5Uh4Klrg5ZrT/pWv8AZrED4QrejR94q/2b4VdS5nuKVCzExqSI0j3q2cfcBiRT/wAdcpqxwTsTLJkcadBsVPZQ66UBs8RuAzoaL8OxzXJkARTvSZllCS2ZjFcIvC8zrbZlYzpFE+FcPZVIKFfWrB422YjINCRuaceLt+UfOgiof0KSm3tEN20U30qXBOSwFVMdi2uRpAFScJvZXGbaoqstxfkIcYeIPkf0rJ8IxPeXbhUeBfDmmATzC9YitbxlM1skaxP1H7xWOexcw9hAhzQsMukyTJK9dzpI5UGW/Rp+LuFLvAF2mcG5cZgSAI2kAAcz71Bwq2O7UAAkfCY1A9R5VSxWJuO5m0ehmUA67kz7Vd4RaKIBzJMdYBjWsj6bkktEnE8GbiEDcAwOp0gDkJiPetf2V7OJh1FxlAusoBjZdBIHnI1PnXnXaLtJ3Ltat6vkjNPwM2u0atlgj1FDOA8axl/EWrX4i4czgHXlufoDWnBBrbMPyZp6j/098XrQzH4rlV674UA6Cs1jMQA2/OtUnRkxxtmV/iRxU28oUAmRofn+leeY7i1911cKCdl0ot26x/f4lwjLFsczuY5UBxWF0tjvk1XMfLyNLr7G2+G4/h7iGNpgTJzRUP8AEa9FpFGvi+tM7DobdpjmDSZEVW/iLcypbAOp1oF0Nv8AEyVi2zXEQqQSwGu8V9BdkEC2ig2WB9K8Q7NMXxK3LjZso/8AFeu8C4pkaIkOQPQ0d/kLa/BmxpVBexSroTrExXMPigRroelHaE+X0nrlQXMYg51UwPF0dih8LdDzqvSC8OrCJoH2nw5cKAY3o3daATWM4rjScRbBJykN6UGWnGhuBtT9FW7fW0pEkzQlLZcFjtNS4+2HuFUbNB1HrWh4LgBoCNBv5msCg5So6csiUfRlj2Tut4iDrrXK9PilW3/BE53/AKJFrGIpBke9CL9uimMPKhhNOkKx8KucrqOW4/UV3Eul1J/mUEiNwY+1SOusc9/UfvQ68pRpG39/ShHLZPgL4dVYazFXMNirbxlMyY2O9B+GWe6Yhf8A0mMr/kJ3U+UzHlpREeFl6Zh96FFyQTFmiHCkjN7VCFq3ghvRUZnK0Ae78Tf6j96uizUWTX+o/eiYtwNaGEdDMktlFsP5UrWGE+I+w3/2qV8SJA6mKGcVxJs3VblI+VW6WyRTlos4TF52ursttsgHXQHMfMz8qG8WvqiGdhsd6LYu2pXMhCF4OaJBMQMw59Pbes5jrjZWt3gAx2YfCekGND5H60nJaRowVYEVQ5zTIPTY+9ToFUE+9UOG4Hue9D3CA0ZFEHUzJ29KvLwC+y5rz5bf5QIZh5/lH9isyi3w1ykkAMPcN22ly7bViw1DAHptPKi/B8PZtXFu27VtHXYhQN99BpRS5wmLAucjsvIDlSw/CSpE8xMVpSkjM/DCi8euNuikddv1qvi8Gl5DqQTtH6UVXhVspkbwzsfP1oa9lldgx1tpy5nUSPUQaa2/sSlF8PLOL9g8RacusXgST5j160AxfBr6KXew4G0xpXuljG5lUvAnSfOrbWkcBIBXczRJ2hbVHk/YMRaPSZqtxnC3MZiSqKSq6V6NjuF2u+y21CALJjSSadewaWLZKgAnnzpEpNNs0wxqSVmS4bwjD4f47RLdaPYhwtvPb9RVDG3ZEk6/eszxDt49u5ks2syqCpzA79RpQ4pubomfHGETUdoOMhEW9nY3TAC8o56Ues4xnRTPLcbHyNY3hQ//ACVglkVWQ5QoOvqRyrZ9k+BRYVbm6MdjvrWitmSLaLNm5PrXMXgw4kaMNQw3BrnEgtq4EJ1bVf2ptnHRo4jz5ULa4PSdWi7hOJlkNq7pcAieTDqKyuIQuShOxOVunIg1p7thbg+xG4oI3DXW7HX6+dDK+MkUlwl4J2eQKpZpK6SOfrWle8iiBFR8OwWXQmaZjbWukRzpkYpcFSk26bH/AI0flNKo1OlcowaQTxb60ParuNHiqlcFRlx4MuA7jcaj9qbfQEeuv+1OU7jpUOHv5w45o5H6/vVBkC22Qyuo6fvU7MGGnLlzpyn5H71x1FVRdh6w0qD1AP0q3hedA+FYkzkOo5ftR3DKdZBovozyVMp4RBOY8pj1qfEgMuUzDcxy6GlbtxA9Sf796ap/kPLb0qRVKiN27AWFvxf7u78SnQ8mHI1J2hUOtzrbyn1BqTjuBzQ40dfhPLrBqlbxQvC6SIJtlWU8iCopb+0aI7akh3AMVK922o2p6nLcNptVO066dKH9m3ADg7giKIXrWZgeYII9KkeIuX7MIJgk0ORYEchyobjCb93ux8C6sfL9zRTFXYTTemcNwwtr5nU0TX0LUq2xvE7INnJttpTcak2lYfEsEftU2KM0xn8OvSoyL6G4a531gg7/AGoTdxLG4Mwk5IY/mI8K/PNPtVrA3xbcg/Cw+tD+IhkuqT8DDKvUEEnX1ka+VLk9DoxpsnfCAIEOvU+Z6eVBMHw/iS3DD22tycpM5o5T51o7akrVTiBdUZkL5lViFQ6nwx8JIDHmJ5irToGSspLwLG941179pQY0IIA9yajx9hmENeRwCykoCQrKpZgxGiwBzrGYbE3hiEQOXtXXOpgi4qsGeUeYYRsRPSiqcQLpbOcq73br4eCpKqVY5WzGSjEHQ7HSkuSkuD4xlF/sc7N4u1fxCI4IEllMiDGoDLGmknfpW5x/4O2jMRa0BP8ALXl/FOGPdW46HuWcGQNO7dLiI6gqYgmTpyNZTFdl8XBOY3B/qY/c0Xx6inYv5X5SVfwLY7tSxv8Af2cqMJQhdmXzo/2Q/iHfa7asMikM2UtOuvlXmmHsMj5XUqehEUc7EWC+OsgCfHPsJJrQZj3TtJw3vAtxR4029DvVDh5zyHHlBrVKKxHaHiQS+xBgrtH60nLj36RowZqXll5sKyz3Zy1PgcJeMM+tUcB2iRyFZSCRMjUVsOH3Ue2pQyIocabews00lpFSzC+tQW3kwxAJ1iiOJtidaCXsQPxBQ/lkfM0/SMqthTuh1pUMu8XtochkERy8qVT0ieWFMf8AFVJ6ucRHiqgxon0uHCF2hlPIyKH8Du5rl7zM/IxVzEDSPcetUeD3wM+mpZh6a1QYTG5FcNcLVy43OoRElh4II3BkGs5h+3+MOOGEPdz3wtEZSDlLgZl/pM86Oq/OsBYyt2it9O8nX8wwpOnyq4sXljaPazv7VFilnXnTprjnSiYpFPFYkKACJB0PkOdZ3hNkrexCzINssD/UBHqIorxW7ANCOD4wjE20AkXEuA+UZWB/T3pUuo1Q1B0EuE4ABJOhJPuKvMgBmOUCpLoA51TvX6LiA3J2SJvJp7X/ADqib1c72hsLwXTcprNVXva6LlVYXkcRBmBQftJbYhLoOlskuPIx4vaPkTRiaTICCDsd/Shewlp2QYHESB0Iqe4tZ3gd3KXtSD3bFQZ/l3WT6EVoUeR/f6xUi7RclTsxvHOFNbuXWtyLd21cbQnwX98y/lLKTt+U1h+OMw7gxCdzbKaQJIDPB5+Ik+9ezX7AZSrbERyNeX8d4HF0WNgrhkjwg2rjsbsFt8gUHynUUucRmOQc4Pbe5YxDsIJtWXYRl8bXLoLZeRIVfkKkwNmNzU3Ze9/g4jmt58pIA1W34LZDc9AGnaWNdWyEPxZug2NXWkLfWH+Bdl8LiQ7X7SvEASOfM+u1Ck7FJw/F9/YUtbIOm5XXlO4rR9lMWEIRmEPqeQB5DWtBxVZUc6fGnEyybUzK8V441uyzhWB2BI0k7Vj0wecZjJJ1J861nbclcJMbOh120YHXyq5wJLOMtBgoR1iQP71FU9ug00lZmuFcHIa3psSJ8jW0tYYWvh3IgfqTTMfwRshVWyk7MNx51QTG3Fbu7oJKiA4EBh+9BTiFanwLX7kxrJBANZXFPOO9oo5h8YGJUdJA9DWevW2N9ngyDI0q3siVE3ErGa4x9PsBSp5xgO/2rtX5L9Gn4ous0LuCjPEl0oM1Ml0XjeitfOnprWe4degmeZJ+tHsWYVj0B+1ZOyTQ2NNKt2RXGv6Ch6XoUTzrqAtvtUbIkS4jHrbR3Y+FFLn0AmvLuyXE2biuGv3D4nv+LyLhkj/qArb9ujlwF0jnkH/yJXklu+yMrr8SMHX/AFKQw+oFFEVke6Pq9DXLraVW4ZihdtpcX4XVXHowBH3p+KuQKJiktmf43dMGqHZvXFE/ksaerv8A9lTcWuTpQbhHERaxZVjHeWgoPmrEj/7Uhv8AI2JfhRr+IYwDnQv8VNCOK42W3qpZxrzCLmP977n6VJS2XGNI0gc08UJt3L/RB6kmpxfu82T5H96GwgktOn2rO8U7QrhxN64pPK2qku3tm8I8zWD4/wBpcRim3Nq3EBFJ1H+Y8zVlWen3eM2UEnEWjvCyCSRyEH22ofa48LlsFr1pWIllzxlnWBoJ0rz/AILwo3BIWY5xoPetVgeD2reulx+n7Dn70LaIky52bsW0uN3ZzI8sNZhp8QBO45z6jlWwsIYkmPvQvA8MysHciQNFGwPU9TE0TBJq4lyZMSKBdqeHB0S6N7Tgzt4G8FwEnlDT/TRtRQDt7icmDczu1seo7xcw/wCWakuAR6Zzs/e//XReagIfVQAfqDRRXPM1luHX8hJUyjBSPUZgY8suT5a6g1fOP86ilojWw4j+dWbeII2cg+pgfI1nUxJq7hrs1PRKDt6+bqG3dYuh3BgfbX60U4XxXuQFS2kARoAunmRvQGyasoaNMFxT0aj/AIkJ07sf8x/aqt/Go/8AIRPQg/cChFurdsUXegqEY8IMLhmW6LmbQTpzIPKiTsI0nX9qiiuM1UlRHsqNhD/l+v7VyrRNKoQ02JWZ9KBXBQXjXaXG52Fm0iJsCwzMR1IBgelZxuO44GSynyKj9KCfyIWHj+Lko2WMHgb0P2rMjTSov+IrzIwdFkgiRI/eh6Bz8TRVLIpcCeNx6GLYmrdsUIsARuSavhDRIoE9v8Wq4J1O7siqPPMG+ymvJ3Y+npXpOK4gXLJdUFdVNthI32I61nOJdmAZbDGR/wDyY6/0Od/Q/OqhnjdPQOXBL9ls9e/hti83C8M2py28kDeUY24/6auY+/d1JYJ/lQBm92bT6e9Zr+D2IYYS5h3Uq9m43hbQ5X8QPpmzj2olxy8xZl1CrE+Z3j2EU6XBWPpRxL3G/wDc9iQfbRI+U1l+0uBxBKOFmDBZRJAPkIkaDlRm3dYt4RJ2AHIdKM4Xh90iWhfLc1lZsBXAcHbNkPdY3WP5joPLKN/eaJWjPhtpoNYUAADr0FXk4eoEsgPv+1V8ddXuygbKCIOSAY6TyqPJSDjivoMxGOCqXZlRBuzbeg6nyFZTi3bN2lMPKjbvCBmP+lf5fU61ztBh7DSA1y5cjLbTMzQfJRoP1rnA+yTMZvnux+QfGfX8tFGVq0LlGnQDwmDuXXhQzu2p3JPmT+9bDhXYnZr7f0Lr82/atDg8NZsLlRQg8tz5k7n3qR+I5dln+qP0qnJLpai3xDrPBkChBPlELHoFAHzq1guD2rTZwJeIkljAO8Saz2Jx+ILFluuomQi5AAOQMr4/c+1H+A8U75SHgXE+IDQEcmA5T+lVGUW9ElGSVhNLdShaYG5VIlMFMdXn38QrxvHuY8C5ctyTl77NlKPGg0JAnnNegMw2kT6j9TXl/a5SmOvKEy23S3cYSPEQdHWDoWcEeskjWhlwKHTK4PFQsBtQYKwQRqdZ56z9KK4a7NA8Xhjm71SrLlUkqwJEhV8Q3BJPnvRfhpkVT4R9Ctt6v4O5rFUbVqruCt6z0oV0jDVt6t26G2TRO2IFNBJ7VXbZoepqyj0SBZcz03NyqHPU1lZqwR4U0qurZ0pVRVgXiQNt8retDL6K1E+N3VuKI+IfbpWYu38vOsmeHmX+joYJ3H/ZbOEWonsCqZx5rn4+szQ+0XO7qZGPU0PTGU78XUUpL7KqP8LN7AW3Ys6gsdz15U9OG2hsg+tVhi6eMZV2yfiE8IvdnMhynbQ8unnUj38x8evrQo44cyKaMTm+GW9AT9qNSnxAPx1h/DMqjQAelW0xQrPWFuna3cj/AEt+oq2LWI2Fpz9KbH1/Bcpw/oRxdxipgisji8J3hIzkHaZ0Htzoy+GvEEGw/wC9AOIvcQmUdAOZVgPnFF4bltAvJFR0w32e4ZYsCLa+LYu2rHrryHpXO1/EDaW2tlFa7caBOyqNWb12HvQTCcdC7sD5g/vQztDxsd/ZuBtFRk01gyD9Y+lNb1oVGrDb4jxlTrABY9SZgT7H5Vy1jVcmDCrIk84+Jh/lGo9qydnirMrZT4rjt4uggCfYAmrBxNsBVkLbUD+ojZR1A09/SsziavVmos4kRmbwjqdPT/x51JgOJ2lxJYMsC0wYyANXUqD56NWIv4vvIZlZhJGQAkAf2N/Os9iMSF8KifXrHSm48exGXKqPYb/bTDINXDNroCPudKHWO2Fy6/hJI2yoIVfV21PqK8zwlpmIG7H6DyrccIsi2oC79ac0Z1I12G4m43j0kn9vtV3Jh8R4bqJmOgfKuZTrBViJBEny1NZ23dkVZs3iKiRfo89uuXFyyRbDqWhwAmaIDSBv8AbyjptzBM6HIRDDcVqu0HZwu5xFiMxRw6DcsVIDp/m116+u+aGIPeyUgAZFaG1CwAGn+Yaigaa0MbT2gvg3bnRq0YFBLFyYokLuwoUUwvghrRIUNwG1XwaYgSWaeDVcsasWJIzLrG45+ookUyzZWaK4CxVTC280FaO4a1AFELk6HC3SqSKVShVmCwnZbCPJZc0CSYH6yalv9nLTiYKgc8xJPtSpUxpNbQ1SaegO3ZyScjGPOKqXeA3QYWG85A+9KlSZYYVwcskgbiMDfTVrcAGJzJ+hqWxw/EtsijzLj9JpUqFYYCsmeaemFcL2but8dxV8lBP1MUYw3Ze1/Ozv6mB/0xSpU2OKC+hLzTf2F8Lwmwnw2lHnAJ+ZogigbClSpqSQttseGrualSqyjmamuARrSpVRDJ9oeyeFvyxQI/5lAHzGxrAcSw5w1zuRbDtEgyACNtqVKlyQ2DZHhsMzkk5F0g5VnSdpb0FXU7lBoCSOv+wFKlQUNtlzD8QB0yj5V3GcEw+IEsuVhsy6EfuKVKoiWZa9w9sNdZWgndSOY5acqJYDGSR1/vnXKVQth/D3OdWw9cpUaQLZew5NDONdm0vZ2TwO4GaIAaDIMddKVKqkkwotoyhw2Is/EAyDnIn5fKiQF7ILgQkHbVR9zSpUgaS4fjN1dDaj+paKYPj6EhSCpPXX7TSpVaKClvHDMAwIn3o9hcPBVhv96VKjQDDWBwwDSPhbl0NEGMClSonpWJe5FtLYjWlSpUyhNs//2Q==';
+</script>
+
+<script type="module">
+  import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
+  env.allowLocalModels = false;
+
+  const TOTAL_SLOTS = 10;
+  let transcriber = null;
+  let activeRecorder = null;
+
+  // patients[i] = { name, room, transcript, recordedAt } or null
+  const patients = Array(TOTAL_SLOTS).fill(null);
+
+  // ── MODEL ──
+  window.loadModel = async function() {
+    const btn = document.getElementById('load-btn');
+    const dot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const pill = document.getElementById('progress-pill');
+    const fill = document.getElementById('progress-fill');
+    const pct  = document.getElementById('progress-pct');
+
+    btn.disabled = true; btn.textContent = 'Loading...';
+    dot.className = 'status-dot loading';
+    statusText.textContent = 'Downloading Whisper model (~150MB, one time only)...';
+    pill.style.display = 'flex';
+
+    try {
+      transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base.en', {
+        progress_callback: (p) => {
+          if (p.status === 'downloading') {
+            const v = p.total ? Math.round((p.loaded/p.total)*100) : 0;
+            fill.style.width = v+'%'; pct.textContent = v+'%';
+          }
+          if (p.status === 'loading') { fill.style.width='100%'; pct.textContent='100%'; }
+        }
+      });
+      dot.className = 'status-dot ready';
+      statusText.textContent = 'Whisper model ready — assign patients and start recording';
+      btn.textContent = '✓ Model Ready';
+      pill.style.display = 'none';
+      renderGrid();
+    } catch(e) {
+      dot.className = 'status-dot';
+      statusText.textContent = 'Failed to load model. Check connection and retry.';
+      btn.disabled = false; btn.textContent = '⟳ Retry';
+    }
+  };
+
+  // ── RENDER GRID ──
+  function renderGrid() {
+    const grid = document.getElementById('patient-grid');
+    grid.innerHTML = '';
+    for (let i = 0; i < TOTAL_SLOTS; i++) {
+      grid.appendChild(buildSlot(i));
+    }
+    updateExportMeta();
+  }
+
+  function buildSlot(i) {
+    const p = patients[i];
+    const div = document.createElement('div');
+    div.className = 'patient-slot' + (p ? ' filled' : '');
+    div.id = 'slot-' + i;
+
+    const hasDone = p && p.transcript;
+
+    div.innerHTML = `
+      <div class="slot-header" onclick="toggleSlot(${i})">
+        <div class="slot-number">${String(i+1).padStart(2,'0')}</div>
+        <div class="slot-info">
+          ${p
+            ? `<div class="slot-name">${p.name}</div>
+               <div class="slot-meta">${p.room || 'No room assigned'}</div>`
+            : `<div class="slot-empty-label">Empty — click to assign</div>`
+          }
+        </div>
+        <div class="slot-right">
+          <div class="rec-indicator" id="rec-ind-${i}"><div class="rec-dot"></div>REC</div>
+          <div class="done-badge ${hasDone ? 'show' : ''}" title="Note recorded">✅</div>
+          <span class="chevron">▼</span>
+        </div>
+      </div>
+
+      <div class="slot-edit" id="edit-${i}">
+        <div class="edit-row">
+          <input class="edit-input" id="name-input-${i}" placeholder="Patient name" value="${p ? p.name : ''}" />
+          <input class="edit-input" id="room-input-${i}" placeholder="Room" style="max-width:90px" value="${p ? (p.room||'') : ''}" />
+          <button class="edit-save" onclick="savePatient(${i}, event)">Save</button>
+          ${p ? `<button class="edit-clear" onclick="clearPatient(${i}, event)" title="Clear slot">✕</button>` : ''}
+        </div>
+      </div>
+
+      <div class="recorder-panel" id="panel-${i}">
+        <div class="recorder-inner">
+          <div class="recorder-top">
+            <button class="big-record-btn" id="rec-btn-${i}" onclick="toggleRecording(${i}, event)" ${!p || !transcriber ? 'disabled' : ''}>
+              <span class="mic-icon" id="mic-icon-${i}">🎙</span>
+              <span class="btn-label-text" id="btn-lbl-${i}">Record</span>
+            </button>
+            <div class="recorder-stats">
+              <div class="timer-display" id="timer-${i}">00:00</div>
+              <div class="waveform" id="waveform-${i}"></div>
+            </div>
+          </div>
+          <div class="transcript-label">📝 Note</div>
+          <div class="processing" id="proc-${i}"><div class="spinner"></div><span>Transcribing...</span></div>
+          <div class="transcript-box ${hasDone ? 'has-text' : ''}" id="tx-${i}">
+            ${hasDone
+              ? p.transcript
+              : `<span class="placeholder">${p ? 'Press Record to capture a note...' : 'Assign a patient first, then record.'}</span>`}
+          </div>
+          <div class="action-row">
+            <button class="action-btn" id="copy-btn-${i}" onclick="copyNote(${i})" ${!hasDone ? 'disabled' : ''}>Copy</button>
+            <button class="action-btn primary" id="rec-again-btn-${i}" onclick="clearNote(${i})" ${!hasDone ? 'disabled' : ''}>Record Again</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Build waveform bars
+    const wf = div.querySelector(`#waveform-${i}`);
+    for (let b = 0; b < 20; b++) {
+      const bar = document.createElement('div');
+      bar.className = 'wave-bar'; bar.id = `bar-${i}-${b}`;
+      wf.appendChild(bar);
+    }
+
+    return div;
+  }
+
+  // ── SLOT TOGGLE ──
+  window.toggleSlot = function(i) {
+    const slot = document.getElementById('slot-' + i);
+    const isExpanded = slot.classList.contains('expanded');
+    // Collapse all first
+    document.querySelectorAll('.patient-slot.expanded').forEach(s => s.classList.remove('expanded'));
+    document.querySelectorAll('.slot-edit.open').forEach(s => s.classList.remove('open'));
+    if (!isExpanded) {
+      slot.classList.add('expanded');
+      document.getElementById('edit-' + i).classList.add('open');
+      setTimeout(() => document.getElementById('name-input-' + i).focus(), 50);
+    }
+  };
+
+  // ── SAVE / CLEAR PATIENT ──
+  window.savePatient = function(i, e) {
+    e.stopPropagation();
+    const name = document.getElementById('name-input-' + i).value.trim();
+    if (!name) return;
+    const room = document.getElementById('room-input-' + i).value.trim();
+    if (!patients[i]) patients[i] = { name, room, transcript: '', recordedAt: null };
+    else { patients[i].name = name; patients[i].room = room; }
+    rebuildSlot(i);
+    document.getElementById('slot-' + i).classList.add('expanded');
+  };
+
+  window.clearPatient = function(i, e) {
+    e.stopPropagation();
+    if (activeRecorder && activeRecorder.idx === i) stopRecording(i);
+    patients[i] = null;
+    rebuildSlot(i);
+  };
+
+  function rebuildSlot(i) {
+    const grid = document.getElementById('patient-grid');
+    const old = document.getElementById('slot-' + i);
+    const newSlot = buildSlot(i);
+    grid.replaceChild(newSlot, old);
+    updateExportMeta();
+  }
+
+  // ── RECORDING ──
+  window.toggleRecording = async function(i, e) {
+    e.stopPropagation();
+    if (activeRecorder && activeRecorder.idx === i) stopRecording(i);
+    else { if (activeRecorder) stopRecording(activeRecorder.idx); await startRecording(i); }
+  };
+
+  async function startRecording(i) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64; source.connect(analyser);
+
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks = [];
+      mediaRecorder.ondataavailable = e => chunks.push(e.data);
+      mediaRecorder.start();
+
+      let secs = 0;
+      const timerInterval = setInterval(() => {
+        secs++;
+        const el = document.getElementById('timer-' + i);
+        if (el) el.textContent = `${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
+      }, 1000);
+
+      let animFrame;
+      function animWave() {
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        for (let b = 0; b < 20; b++) {
+          const bar = document.getElementById(`bar-${i}-${b}`);
+          if (bar) bar.style.height = Math.max(4,(data[Math.floor(b*data.length/20)]/255)*22)+'px';
+        }
+        animFrame = requestAnimationFrame(animWave);
+      }
+      animFrame = requestAnimationFrame(animWave);
+
+      activeRecorder = { idx: i, mediaRecorder, chunks, timerInterval, animFrame, stream };
+
+      document.getElementById('rec-btn-'+i).classList.add('recording');
+      document.getElementById('mic-icon-'+i).textContent = '⏹';
+      document.getElementById('btn-lbl-'+i).textContent = 'Stop';
+      document.getElementById('timer-'+i).classList.add('active');
+      document.getElementById('waveform-'+i).classList.add('active');
+      document.getElementById('rec-ind-'+i).classList.add('active');
+      const box = document.getElementById('tx-'+i);
+      box.innerHTML = '<span class="placeholder">Recording in progress...</span>';
+      box.classList.remove('has-text');
+
+    } catch(e) { alert('Microphone access denied. Please allow microphone permissions.'); }
+  }
+
+  function stopRecording(i) {
+    if (!activeRecorder || activeRecorder.idx !== i) return;
+    const { mediaRecorder, chunks, timerInterval, animFrame, stream } = activeRecorder;
+    clearInterval(timerInterval); cancelAnimationFrame(animFrame);
+    stream.getTracks().forEach(t => t.stop());
+    for (let b = 0; b < 20; b++) { const bar = document.getElementById(`bar-${i}-${b}`); if (bar) bar.style.height='4px'; }
+
+    const btn = document.getElementById('rec-btn-'+i);
+    btn.classList.remove('recording'); btn.disabled = true;
+    document.getElementById('mic-icon-'+i).textContent = '🎙';
+    document.getElementById('btn-lbl-'+i).textContent = 'Record';
+    document.getElementById('timer-'+i).classList.remove('active');
+    document.getElementById('waveform-'+i).classList.remove('active');
+    document.getElementById('rec-ind-'+i).classList.remove('active');
+
+    mediaRecorder.stop();
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      await transcribeAudio(blob, i);
+      btn.disabled = false;
+    };
+    activeRecorder = null;
+  }
+
+  async function transcribeAudio(blob, i) {
+    document.getElementById('proc-'+i).style.display = 'flex';
+    document.getElementById('tx-'+i).innerHTML = '';
+    try {
+      const ab = await blob.arrayBuffer();
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      const decoded = await audioCtx.decodeAudioData(ab);
+      const result = await transcriber(decoded.getChannelData(0), { sampling_rate: 16000, chunk_length_s: 30, stride_length_s: 5 });
+      const text = result.text.trim();
+      document.getElementById('proc-'+i).style.display = 'none';
+      const box = document.getElementById('tx-'+i);
+      box.textContent = text || '(No speech detected)';
+      box.classList.add('has-text');
+      if (patients[i]) {
+        patients[i].transcript = text;
+        patients[i].recordedAt = new Date().toISOString();
+      }
+      document.getElementById('copy-btn-'+i).disabled = false;
+      document.getElementById('rec-again-btn-'+i).disabled = false;
+      document.querySelector(`#slot-${i} .done-badge`).classList.add('show');
+      updateExportMeta();
+    } catch(e) {
+      document.getElementById('proc-'+i).style.display = 'none';
+      document.getElementById('tx-'+i).innerHTML = '<span class="placeholder" style="color:var(--red)">Transcription failed. Please try again.</span>';
+    }
+  }
+
+  // ── COPY / CLEAR NOTE ──
+  window.copyNote = function(i) {
+    if (!patients[i] || !patients[i].transcript) return;
+    navigator.clipboard.writeText(patients[i].transcript).then(() => {
+      const btn = document.getElementById('copy-btn-'+i);
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 2000);
+    });
+  };
+
+  window.clearNote = function(i) {
+    if (!patients[i]) return;
+    patients[i].transcript = ''; patients[i].recordedAt = null;
+    rebuildSlot(i);
+    document.getElementById('slot-'+i).classList.add('expanded');
+  };
+
+  // ── EXPORT META ──
+  function updateExportMeta() {
+    const filled = patients.filter(p => p && p.name).length;
+    const noted  = patients.filter(p => p && p.transcript).length;
+    document.getElementById('export-meta').textContent =
+      `${filled} patient${filled!==1?'s':''} assigned · ${noted} note${noted!==1?'s':''} recorded`;
+  }
+
+  // ── EXPORT EXCEL ──
+  window.exportToExcel = function() {
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('en-AU', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g,'-');
+    const dateTimeStr = today.toLocaleString('en-AU');
+
+    // Sort filled patients by name
+    const rows = patients
+      .map((p, i) => ({ slotNo: i+1, patient: p }))
+      .filter(r => r.patient && r.patient.name)
+      .sort((a,b) => a.patient.name.localeCompare(b.patient.name));
+
+    if (rows.length === 0) { alert('No patients assigned yet.'); return; }
+
+    const wsData = [
+      ['Patient No.', 'Room No.', 'Patient Name', 'Date-Time Stamp', 'Notes']
+    ];
+
+    rows.forEach(({ slotNo, patient }) => {
+      wsData.push([
+        `P${String(slotNo).padStart(3,'0')}`,
+        patient.room || '—',
+        patient.name,
+        patient.recordedAt ? new Date(patient.recordedAt).toLocaleString('en-AU') : dateTimeStr,
+        patient.transcript || '(No note recorded)'
+      ]);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Column widths
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 12 }, { wch: 26 }, { wch: 22 }, { wch: 70 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Patient Notes');
+    XLSX.writeFile(wb, `Patient_Notes_${dateStr}.xlsx`);
+  };
+
+  // Init grid on load
+  renderGrid();
+</script>
+</body>
+</html>
